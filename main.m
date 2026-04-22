@@ -45,3 +45,14 @@ grid on;
 title('Траектория капитала z(t)');
 xlabel('Время, t');
 ylabel('Капитал, z');
+
+% 2. График управления (u)
+subplot(1,3,2);
+plot(t, u_opt, 'g-', 'LineWidth', 2);
+hold on;
+yline(0.11, 'r--', 'Магистраль (0.11)', 'LineWidth', 1.5);
+ylim();
+grid on;
+title('Управление u(t)');
+xlabel('Время, t');
+ylabel('Доля инвестиций, u');
