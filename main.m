@@ -70,3 +70,27 @@ xlabel('Капитал, z');
 ylabel('Управление, u');
 legend('Траектория', 'Начало (t=0)', 'Конец (t=T)', 'Стационарная точка');
 
+% ЛОКАЛЬНАЯ ФУНКЦИЯ ЦЕЛИ 
+function J = cost_function_unconstrained(v, N, dt, t, alpha, rho, mu, z0, epsilon)
+    % Преобразование переменных в u
+    u = (1 - epsilon) ./ (1 + exp(-v));
+    
+    % Прямое вычисление динамики z(t)
+    z = zeros(1, N);
+    z(1) = z0;
+    penalty = 0;
+    
+    for i = 1:N-1
+        z(i+1) = z(i) + dt * (u(i) * z(i)^alpha - mu * z(i));
+        if z(i+1) <= 0.1
+            penalty = penalty + 1e6; % Сильный штраф за падение капитала до нуля
+            z(i+1) = 0.1; % Защита от ошибки log(0)
+        end
+    end
+    
+    % Подынтегральное выражение
+    integrand = exp(-rho * t) .* (log(1 - u) + alpha * log(z));
+    
+    % Интеграл (со знаком минус для минимизации) + штраф
+    J = -sum(integrand) * dt + penalty;
+end
