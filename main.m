@@ -56,3 +56,17 @@ grid on;
 title('Управление u(t)');
 xlabel('Время, t');
 ylabel('Доля инвестиций, u');
+
+% 3. Фазовый портрет (z vs u)
+subplot(1,3,3);
+plot(z_opt, u_opt, 'k-', 'LineWidth', 2);
+hold on;
+plot(z_opt(1), u_opt(1), 'bo', 'MarkerSize', 8, 'MarkerFaceColor', 'b');
+plot(z_opt(end), u_opt(end), 'rs', 'MarkerSize', 8, 'MarkerFaceColor', 'r');
+plot(6.46, 0.11, 'm*', 'MarkerSize', 10);
+grid on;
+title('Фазовый портрет');
+xlabel('Капитал, z');
+ylabel('Управление, u');
+legend('Траектория', 'Начало (t=0)', 'Конец (t=T)', 'Стационарная точка');
+
