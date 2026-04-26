@@ -1,96 +1,127 @@
-% ПАРАМЕТРЫ МОДЕЛИ 
-T = 30;          
-N = 100;          % Уменьшили количество точек для скорости fminsearch
-dt = T / (N-1);  
-t = linspace(0, T, N); 
+clear; clc; close all;
 
-alpha = 0.3;     
-mu = 0.03;       
-rho = 0.05;      
-epsilon = 0.01;  
-z0 = 2.0;        
+% параметры
+alpha = 0.3;
+mu = 0.03;
+rho = 0.05;
+epsilon = 0.01;
+z0 = 2;              % Начальный капитал
+N = 100;             % Количество точек
 
-% НАСТРОЙКИ ОПТИМИЗАЦИИ (MATLAB - fminsearch) 
-% Чтобы ограничить u от 0 до 0.99, мы оптимизируем переменную v
-% Связь: u = 0.99 / (1 + exp(-v))
-u_init = 0.11; % Стартуем с магистрали
-v0 = -log((1 - epsilon)/u_init - 1) * ones(1, N); % Обратное преобразование
+% Расчет магистрального решения
+z_bar = (alpha / (rho + mu))^(1 / (1 - alpha));
+u_bar = mu * z_bar^(1 - alpha);
 
-% Настройки решателя
-options = optimset('Display', 'iter', 'MaxIter', 5000, 'MaxFunEvals', 20000);
+T_list = [20, 30, 50];
+colors = {'b', 'g', 'r'}; % Цвета для T=20, 30, 50
 
-% Запуск оптимизации
-v_opt = fminsearch(@(v) cost_function_unconstrained(v, N, dt, t, alpha, rho, mu, z0, epsilon), v0, options);
+% графики
+fig_z = figure('Name', 'Траектория капитала z(t)', 'Position', [100, 100, 800, 500]);
+hold on; grid on;
+title('Траектория капитала z(t)');
+xlabel('Время t'); ylabel('Капитал z(t)');
 
-% ВОССТАНОВЛЕНИЕ РЕЗУЛЬТАТОВ 
-% Возвращаем u_opt в диапазон [0, 0.99]
-u_opt = (1 - epsilon) ./ (1 + exp(-v_opt));
+fig_u = figure('Name', 'Управление u(t)', 'Position', [150, 150, 800, 500]);
+hold on; grid on;
+title('Оптимальное управление u(t)');
+xlabel('Время t'); ylabel('Доля инвестиций u(t)');
+ylim([0 0.3]);
 
-% Прямой расчет z_opt по найденному u_opt
-z_opt = zeros(1, N);
-z_opt(1) = z0;
-for i = 1:N-1
-    z_opt(i+1) = z_opt(i) + dt * (u_opt(i) * z_opt(i)^alpha - mu * z_opt(i));
+fig_phase = figure('Name', 'Фазовый портрет', 'Position', [200, 200, 800, 500]);
+hold on; grid on;
+title('Фазовый портрет');
+xlabel('Капитал z(t)'); ylabel('Скорость изменения dz/dt');
+
+% цикл по горизонтам планирования
+for k = 1:length(T_list)
+    T = T_list(k);
+    dt = T / (N - 1);
+    t = linspace(0, T, N);
+
+    % Начальное приближение и границы
+    u_init = u_bar * ones(1, N);
+    lb = zeros(1, N);
+    ub = (1 - epsilon) * ones(1, N);
+
+    % Настройки fmincon
+    options = optimoptions('fmincon', ...
+        'Algorithm', 'sqp', ...
+        'Display', 'iter', ...
+        'MaxFunctionEvaluations', 100000, ...
+        'MaxIterations', 1000);
+
+    % Запуск оптимизации
+    fprintf('\n---> Решение задачи для T = %d...\n', T);
+    u_opt = fmincon(@(u) cost_function(u, t, dt, z0, alpha, mu, rho), ...
+                    u_init, [], [], [], [], lb, ub, [], options);
+
+    % Восстановление траектории капитала z(t)
+    z_opt = zeros(1, N);
+    z_opt(1) = z0;
+    for i = 1:N-1
+        z_opt(i+1) = z_opt(i) + dt * (u_opt(i) * z_opt(i)^alpha - mu * z_opt(i));
+    end
+
+    % Вычисление производной dz/dt для фазового портрета
+    zdot_opt = u_opt .* z_opt.^alpha - mu .* z_opt;
+    
+    % График z(t)
+    figure(fig_z);
+    plot(t, z_opt, 'Color', colors{k}, 'LineWidth', 2, 'DisplayName', sprintf('T = %d', T));
+
+    % График u(t)
+    figure(fig_u);
+    plot(t, u_opt, 'Color', colors{k}, 'LineWidth', 2, 'DisplayName', sprintf('T = %d', T));
+
+    % Фазовый портрет
+    figure(fig_phase);
+    plot(z_opt, zdot_opt, 'Color', colors{k}, 'LineWidth', 2, 'DisplayName', sprintf('T = %d', T));
 end
 
-% ПОСТРОЕНИЕ ГРАФИКОВ 
-figure('Name', 'Результаты оптимального управления');
+% добавление магистралей и легенд 
+% окно z(t)
+figure(fig_z);
+yline(z_bar, '--k', 'Магистраль \barz', 'LineWidth', 1.5, 'HandleVisibility', 'off', 'LabelHorizontalAlignment', 'left');
+legend('Location', 'best');
 
-% 1. График траектории капитала (z)
-subplot(1,3,1);
-plot(t, z_opt, 'b-', 'LineWidth', 2);
-hold on;
-yline(6.46, 'r--', 'Магистраль (6.46)', 'LineWidth', 1.5);
-grid on;
-title('Траектория капитала z(t)');
-xlabel('Время, t');
-ylabel('Капитал, z');
+% окно u(t)
+figure(fig_u);
+yline(u_bar, '--k', 'Магистраль \baru', 'LineWidth', 1.5, 'HandleVisibility', 'off', 'LabelHorizontalAlignment', 'left');
+legend('Location', 'best');
 
-% 2. График управления (u)
-subplot(1,3,2);
-plot(t, u_opt, 'g-', 'LineWidth', 2);
-hold on;
-yline(0.11, 'r--', 'Магистраль (0.11)', 'LineWidth', 1.5);
-ylim();
-grid on;
-title('Управление u(t)');
-xlabel('Время, t');
-ylabel('Доля инвестиций, u');
+% фазовое окно
+figure(fig_phase);
+plot(z_bar, 0, 'k*', 'MarkerSize', 10, 'LineWidth', 1.5, 'DisplayName', 'Стационарная точка');
+legend('Location', 'best');
 
-% 3. Фазовый портрет (z vs u)
-subplot(1,3,3);
-plot(z_opt, u_opt, 'k-', 'LineWidth', 2);
-hold on;
-plot(z_opt(1), u_opt(1), 'bo', 'MarkerSize', 8, 'MarkerFaceColor', 'b');
-plot(z_opt(end), u_opt(end), 'rs', 'MarkerSize', 8, 'MarkerFaceColor', 'r');
-plot(6.46, 0.11, 'm*', 'MarkerSize', 10);
-grid on;
-title('Фазовый портрет');
-xlabel('Капитал, z');
-ylabel('Управление, u');
-legend('Траектория', 'Начало (t=0)', 'Конец (t=T)', 'Стационарная точка');
+fprintf('\nВсе вычисления завершены. Графики построены в отдельных окнах!\n');
 
-% ЛОКАЛЬНАЯ ФУНКЦИЯ ЦЕЛИ 
-function J = cost_function_unconstrained(v, N, dt, t, alpha, rho, mu, z0, epsilon)
-    % Преобразование переменных в u
-    u = (1 - epsilon) ./ (1 + exp(-v));
-    
-    % Прямое вычисление динамики z(t)
+% функция
+function J = cost_function(u, t, dt, z0, alpha, mu, rho)
+    N = length(u);
     z = zeros(1, N);
     z(1) = z0;
-    penalty = 0;
-    
+    J = 0;
+
     for i = 1:N-1
         z(i+1) = z(i) + dt * (u(i) * z(i)^alpha - mu * z(i));
-        if z(i+1) <= 0.1
-            penalty = penalty + 1e6; % Сильный штраф за падение капитала до нуля
-            z(i+1) = 0.1; % Защита от ошибки log(0)
+        
+        if z(i) <= 0 || u(i) >= 1
+            J = 1e10; 
+            return;
         end
+        
+        utility = exp(-rho * t(i)) * (log(1 - u(i)) + alpha * log(z(i)));
+        J = J + utility * dt; 
     end
     
-    % Подынтегральное выражение
-    integrand = exp(-rho * t) .* (log(1 - u) + alpha * log(z));
+    if z(end) <= 0 || u(end) >= 1
+        J = 1e10;
+        return;
+    end
     
-    % Интеграл (со знаком минус для минимизации) + штраф
-    J = -sum(integrand) * dt + penalty;
+    utility_end = exp(-rho * t(end)) * (log(1 - u(end)) + alpha * log(z(end)));
+    J = J + utility_end * dt;
+    
+    J = -J; 
 end
