@@ -12,8 +12,8 @@ N = 100;             % Количество точек
 z_bar = (alpha / (rho + mu))^(1 / (1 - alpha));
 u_bar = mu * z_bar^(1 - alpha);
 
-T_list = [20, 30, 50];
-colors = {'b', 'g', 'r'}; % Цвета для T=20, 30, 50
+T_list = [10, 50]; 
+colors = {'b', 'r'}; 
 
 % графики
 fig_z = figure('Name', 'Траектория капитала z(t)', 'Position', [100, 100, 800, 500]);
